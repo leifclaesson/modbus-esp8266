@@ -8,6 +8,10 @@
 #pragma once
 #include "ModbusAPI.h"
 
+//Leif modifications to support communicating with JK BMS with slave ui 0 (which is invalid)
+void SetModbusRTU_SlaveIdleID(uint8_t addr);	//for example 255. this breaks modbus broadcasts.
+uint8_t GetModbusRTU_SlaveIdleID();
+
 class ModbusRTUTemplate : public Modbus {
     protected:
         Stream* _port;

@@ -8,6 +8,11 @@
 
 #include "ModbusRTU.h"
 
+static uint8_t modbusSlaveIdleAddress=0;
+
+void SetModbusRTU_SlaveIdleID(uint8_t addr) { modbusSlaveIdleAddress=addr; };
+uint8_t GetModbusRTU_SlaveIdleID() { return modbusSlaveIdleAddress; }
+
 // Table of CRC values
 static const uint16_t _auchCRC[] PROGMEM = {
 	0x0000, 0xC1C0, 0x81C1, 0x4001, 0x01C3, 0xC003, 0x8002, 0x41C2, 0x01C6, 0xC006, 0x8007, 0x41C7, 0x0005, 0xC1C5, 0x81C4,
@@ -83,7 +88,7 @@ bool ModbusRTUTemplate::rawSend(uint8_t slaveId, uint8_t* frame, uint8_t len) {
 
 uint16_t ModbusRTUTemplate::send(uint8_t slaveId, TAddress startreg, cbTransaction cb, uint8_t unit, uint8_t* data, bool waitResponse) {
     bool result = false;
-	if (!_slaveId) { // Check if waiting for previous request result
+	if (_slaveId==modbusSlaveIdleAddress) { // Check if waiting for previous request result
 		rawSend(slaveId, _frame, _len);
 		if (waitResponse) {
         	_slaveId = slaveId;
@@ -151,7 +156,7 @@ void ModbusRTUTemplate::task() {
 
     uint8_t address = _port->read(); //first byte of frame = address
     _len--; // Decrease by slaveId byte
-    if (isMaster && _slaveId == 0) {    // Check if slaveId is set
+    if (isMaster && _slaveId == modbusSlaveIdleAddress) {    // Check if slaveId is set
         for (uint8_t i=0 ; i < _len ; i++) _port->read();   // Skip packet if is not expected
         _len = 0;
 		//if (isMaster) cleanup();
@@ -203,7 +208,7 @@ void ModbusRTUTemplate::task() {
             free(_sentFrame);
             _sentFrame = nullptr;
             _data = nullptr;
-		    _slaveId = 0;
+		    _slaveId = modbusSlaveIdleAddress;
 		}
         _reply = Modbus::REPLY_OFF;    // No reply if master
     } else {
@@ -222,7 +227,7 @@ void ModbusRTUTemplate::task() {
 
 bool ModbusRTUTemplate::cleanup() {
 	// Remove timeouted request and forced event
-	if (_slaveId && (millis() - _timestamp > MODBUSRTU_TIMEOUT)) {
+	if ((_slaveId!=modbusSlaveIdleAddress) && (millis() - _timestamp > MODBUSRTU_TIMEOUT)) {
 		if (_cb) {
 			_cb(Modbus::EX_TIMEOUT, 0, nullptr);
 			_cb = nullptr;
@@ -230,7 +235,7 @@ bool ModbusRTUTemplate::cleanup() {
 		free(_sentFrame);
         _sentFrame = nullptr;
         _data = nullptr;
-		_slaveId = 0;
+		_slaveId = modbusSlaveIdleAddress;
         return true;
 	}
     return false;
